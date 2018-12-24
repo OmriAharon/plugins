@@ -7,7 +7,22 @@ static FIRVisionTextRecognizer *recognizer;
                 options:(NSDictionary *)options
                  result:(FlutterResult)result {
   FIRVision *vision = [FIRVision vision];
-  recognizer = [vision onDeviceTextRecognizer];
+
+  NSString *recognizerType = options[@"recognizerType"];
+     if ([recognizerType isEqualToString:@"onDevice"]) {
+       recognizer = [vision onDeviceTextRecognizer];
+     } else if ([recognizerType isEqualToString:@"cloud"]) {
+       FIRVisionCloudTextRecognizerOptions *recognizerOptions =
+           [TextRecognizer parseCloudOptions:options result:result];
+       if (!recognizerOptions) return;
+
+        recognizer = [vision cloudTextRecognizerWithOptions:recognizerOptions];
+     } else {
+       NSString *errorString =
+           [NSString stringWithFormat:@"No TextRecognizer for type: %@", recognizerType];
+       @throw(
+           [NSException exceptionWithName:NSInvalidArgumentException reason:errorString userInfo:nil]);
+     }
 
   [recognizer processImage:image
                 completion:^(FIRVisionText *_Nullable visionText, NSError *_Nullable error) {
@@ -101,4 +116,31 @@ static FIRVisionTextRecognizer *recognizer;
     @"text" : text,
   }];
 }
+
+(FIRVisionCloudTextRecognizerOptions *)parseCloudOptions:(NSDictionary *)optionsData
+                                                     result:(FlutterResult)result {
+   FIRVisionCloudTextRecognizerOptions *options = [[FIRVisionCloudTextRecognizerOptions alloc] init];
+
+    if ([optionsData[@"apiKeyOverride"] isKindOfClass:[NSString class]]) {
+        options.APIKeyOverride = optionsData[@"apiKeyOverride"];
+    }
+    if ([optionsData[@"hintedLanguages"] isKindOfClass:[NSArray class]]) {
+        options.languageHints = optionsData[@"hintedLanguages"];
+    }
+
+    NSString *modelType = optionsData[@"modelType"];
+       if ([modelType isEqualToString:@"sparse"]) {
+         options.modelType = FIRVisionCloudTextModelTypeSparse;
+       } else if ([modelType isEqualToString:@"dense"]) {
+         options.modelType = FIRVisionCloudTextModelTypeDense;
+       } else {
+         NSString *errorString = [NSString stringWithFormat:@"No support for model type: %@", modelType];
+         NSError *error = [NSError errorWithDomain:errorString code:[@0 integerValue] userInfo:nil];
+         [FLTFirebaseMlVisionPlugin handleError:error result:result];
+
+          return nil;
+       }
+
+        return options;
+     }
 @end
